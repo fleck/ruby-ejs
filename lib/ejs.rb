@@ -38,8 +38,21 @@ module EJS
       replace_escape_tags!(source, options)
       replace_interpolation_tags!(source, options)
       replace_evaluation_tags!(source, options)
-      "function(obj){var __p=[],print=function(){__p.push.apply(__p,arguments);};" +
-        "with(obj||{}){__p.push('#{source}');}return __p.join('');}"
+      if Rails.configuration.assets.erb_variable
+        variable = 't'
+      else
+        variable = 'obj'
+      end
+      template_function = "function(#{variable}){var __t,__p='',__j=Array.prototype.join" +
+        ",print=function(){__p+=__j.call(arguments,'');};"
+      if Rails.configuration.assets.erb_variable
+        template_function << "__p+='#{source}';"
+      else
+        template_function << 'with(obj || {}) {__p+='
+        template_function << "'#{source}'"
+        template_function << ';}'
+      end
+      template_function << 'return __p;}'
     end
 
     # Evaluates an EJS template with the given local variables and
@@ -80,8 +93,13 @@ module EJS
       end
 
       def replace_interpolation_tags!(source, options)
+        if Rails.configuration.assets.erb_variable
+          prefix = "#{Rails.configuration.assets.erb_variable.to_s}."
+        else
+          prefix = ''
+        end
         source.gsub!(options[:interpolation_pattern] || interpolation_pattern) do
-          "', #{js_unescape!($1)},'"
+          "'+((__t=(#{js_unescape!($1)}))==null?'':__t)+'"
         end
       end
 
